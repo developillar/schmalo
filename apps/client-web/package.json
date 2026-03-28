@@ -8,9 +8,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@colyseus/client": "^0.16.8",
     "@schmalo/shared": "0.1.0",
-    "three": "^0.180.0",
-    "colyseus.js": "^0.16.8"
+    "three": "^0.180.0"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

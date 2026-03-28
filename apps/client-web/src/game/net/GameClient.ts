@@ -1,4 +1,4 @@
-import { Client, Room } from 'colyseus.js';
+import { Client, Room } from '@colyseus/client';
 import { MSG, WORLD, type InputPayload } from '@schmalo/shared';
 
 export class GameClient {
