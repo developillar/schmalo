@@ -1,0 +1,15 @@
+{
+  "name": "schmalo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run -ws build",
+    "dev:server": "npm --workspace @schmalo/server-game run dev",
+    "dev:client": "npm --workspace @schmalo/client-web run dev",
+    "typecheck": "npm run -ws typecheck"
+  }
+}

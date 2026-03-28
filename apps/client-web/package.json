@@ -1,0 +1,20 @@
+{
+  "name": "@schmalo/client-web",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@schmalo/shared": "0.1.0",
+    "three": "^0.180.0",
+    "colyseus.js": "^0.16.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.1.7",
+    "@types/three": "^0.180.0"
+  }
+}
