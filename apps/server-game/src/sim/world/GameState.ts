@@ -22,6 +22,7 @@ export class Vec3State extends Schema {
 
 export class PlayerSnapshot extends Schema {
   @type('string') declare sessionId: string;
+  @type('boolean') declare isBot: boolean;
   @type(Vec3State) declare position: Vec3State;
   @type(Vec3State) declare velocity: Vec3State;
   @type('number') declare yaw: number;
@@ -30,9 +31,21 @@ export class PlayerSnapshot extends Schema {
   @type('boolean') declare crouched: boolean;
   @type('number') declare ackSeq: number;
 
-  constructor(sessionId: string) {
+  @type('number') declare shield: number;
+  @type('number') declare health: number;
+  @type('boolean') declare alive: boolean;
+  @type('number') declare mag: number;
+  @type('number') declare reserve: number;
+  @type('boolean') declare reloading: boolean;
+  @type('boolean') declare zoomed: boolean;
+  @type('number') declare respawnIn: number;
+  @type('number') declare kills: number;
+  @type('number') declare deaths: number;
+
+  constructor(sessionId: string, isBot = false) {
     super();
     this.sessionId = sessionId;
+    this.isBot = isBot;
     this.position = new Vec3State();
     this.velocity = new Vec3State();
     this.yaw = 0;
@@ -40,6 +53,16 @@ export class PlayerSnapshot extends Schema {
     this.grounded = false;
     this.crouched = false;
     this.ackSeq = 0;
+    this.shield = 100;
+    this.health = 45;
+    this.alive = true;
+    this.mag = 36;
+    this.reserve = 108;
+    this.reloading = false;
+    this.zoomed = false;
+    this.respawnIn = 0;
+    this.kills = 0;
+    this.deaths = 0;
   }
 }
 
@@ -70,9 +93,18 @@ export class RoomTickState extends Schema {
 }
 
 export class SandboxRoomState extends Schema {
-  @type({ map: PlayerSnapshot }) declare players = new MapSchema<PlayerSnapshot>();
-  @type({ map: PropSnapshot }) declare props = new MapSchema<PropSnapshot>();
-  @type(RoomTickState) declare room = new RoomTickState();
-  @type('number') declare playerCount = 0;
-  @type(['string']) declare recentAcks = new ArraySchema<string>();
+  @type({ map: PlayerSnapshot }) declare players: MapSchema<PlayerSnapshot>;
+  @type({ map: PropSnapshot }) declare props: MapSchema<PropSnapshot>;
+  @type(RoomTickState) declare room: RoomTickState;
+  @type('number') declare playerCount: number;
+  @type(['string']) declare recentAcks: ArraySchema<string>;
+
+  constructor() {
+    super();
+    this.players = new MapSchema<PlayerSnapshot>();
+    this.props = new MapSchema<PropSnapshot>();
+    this.room = new RoomTickState();
+    this.playerCount = 0;
+    this.recentAcks = new ArraySchema<string>();
+  }
 }

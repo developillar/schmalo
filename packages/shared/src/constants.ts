@@ -1,21 +1,31 @@
+import { MOVEMENT } from '@schmalo/sim';
+
 export const NET = {
   TICK_RATE: 60,
   SNAPSHOT_RATE: 20,
 };
 
+/** Networked-player constants, derived from the PRD-tuned sim movement
+ * module so the server, client prediction, and headless tests all agree. */
 export const PLAYER = {
-  RADIUS: 0.35,
-  STANDING_HEIGHT: 2.13,
-  CROUCHED_HEIGHT: 1.45,
-  MOVE_SPEED: 7.6,
-  CROUCH_SPEED_MULTIPLIER: 0.6,
-  AIR_CONTROL: 0.35,
-  GRAVITY: 6.0,
-  JUMP_VELOCITY: 4.14,
-  GROUND_ACCEL: 55,
-  GROUND_DECEL: 30,
-  AIR_ACCEL: 18,
+  RADIUS: MOVEMENT.CAPSULE_RADIUS,
+  STANDING_HEIGHT: MOVEMENT.STANDING_HEIGHT,
+  CROUCHED_HEIGHT: MOVEMENT.CROUCHED_HEIGHT,
+  EYE_HEIGHT: MOVEMENT.EYE_HEIGHT,
+  MOVE_SPEED: MOVEMENT.RUN_SPEED,
+  CROUCH_SPEED: MOVEMENT.CROUCH_SPEED,
+  GRAVITY: MOVEMENT.GRAVITY,
+  JUMP_VELOCITY: MOVEMENT.JUMP_VELOCITY,
   MAX_PITCH_RAD: Math.PI / 2 - 0.01,
+  /** Head hitbox: hits above this fraction of current height are headshots. */
+  HEAD_FRACTION: 0.8,
+};
+
+export const COMBAT = {
+  RESPAWN_DELAY: 5,
+  MELEE_RANGE: 1.6,
+  /** Attacker must be within this cone behind the target for an assassination. */
+  BACK_MELEE_DOT: -0.35,
 };
 
 export const WORLD = {

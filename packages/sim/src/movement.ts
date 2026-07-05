@@ -46,28 +46,22 @@ export function createMoveState(spawn: Vec3): MoveState {
 }
 
 /**
- * One fixed-timestep movement tick. Pure and deterministic: same state +
- * input + dt always produces the same result, frame-rate independent at a
- * fixed 1/60 s step.
- *
- * Vertical motion integrates with a half-step gravity term
- * (y += v·dt − ½g·dt²) so the discrete trajectory samples the exact
- * ballistic arc — the apex matches h = v0²/(2g) from the PRD.
+ * Velocity-level movement update: ground accel/friction, air control,
+ * jump (with coyote time). Mutates state.velocity and the
+ * grounded/coyote flags but does NOT integrate position — used directly
+ * by physics-engine integrations (the authoritative server drives a
+ * Rapier body from these velocities) as well as by stepMovement below.
+ * Keeping one implementation is what keeps client prediction and the
+ * server in lockstep.
  */
-export function stepMovement(
-  state: MoveState,
-  input: MoveInput,
-  dt: number,
-  opts: MoveOptions = {},
-): void {
-  const gravityScale = opts.gravityScale ?? 1;
-  const groundHeight = opts.groundHeight ?? 0;
-
-  // Wish direction in world space from yaw + move axes.
+export function stepVelocity(state: MoveState, input: MoveInput, dt: number): void {
+  // Wish direction in world space from yaw + move axes, matching a
+  // YXZ-euler camera whose forward is -Z: fwd = (-sin yaw, -cos yaw),
+  // right = (cos yaw, -sin yaw).
   const sinY = Math.sin(input.yaw);
   const cosY = Math.cos(input.yaw);
-  let wishX = sinY * input.moveZ + cosY * input.moveX;
-  let wishZ = cosY * input.moveZ - sinY * input.moveX;
+  let wishX = -sinY * input.moveZ + cosY * input.moveX;
+  let wishZ = -cosY * input.moveZ - sinY * input.moveX;
   const wishLen = Math.hypot(wishX, wishZ);
   if (wishLen > 1e-8) {
     wishX /= wishLen;
@@ -118,6 +112,28 @@ export function stepMovement(
     state.grounded = false;
     state.coyoteTimer = Infinity;
   }
+}
+
+/**
+ * One fixed-timestep movement tick against a flat floor. Pure and
+ * deterministic: same state + input + dt always produces the same
+ * result, frame-rate independent at a fixed 1/60 s step.
+ *
+ * Vertical motion integrates with a half-step gravity term
+ * (y += v·dt − ½g·dt²) so the discrete trajectory samples the exact
+ * ballistic arc — the apex matches h = v0²/(2g) from the PRD.
+ */
+export function stepMovement(
+  state: MoveState,
+  input: MoveInput,
+  dt: number,
+  opts: MoveOptions = {},
+): void {
+  const gravityScale = opts.gravityScale ?? 1;
+  const groundHeight = opts.groundHeight ?? 0;
+
+  stepVelocity(state, input, dt);
+  const vel = state.velocity;
 
   // Integrate.
   state.position.x += vel.x * dt;
@@ -142,4 +158,11 @@ export function stepMovement(
   } else if (!state.grounded && state.coyoteTimer !== Infinity) {
     state.coyoteTimer += dt;
   }
+}
+
+/** Camera view direction for a YXZ-euler first-person camera
+ * (forward −Z, pitch positive = up). Used for aiming hitscan rays. */
+export function viewDirection(yaw: number, pitch: number): Vec3 {
+  const cosP = Math.cos(pitch);
+  return { x: -Math.sin(yaw) * cosP, y: Math.sin(pitch), z: -Math.cos(yaw) * cosP };
 }

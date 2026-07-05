@@ -16,11 +16,15 @@ export class StateBinder {
 
   bind(): void {
     this.room.state.players.onAdd((player: any, key: string) => {
-      const entity = new PlayerEntity(key === this.localSessionId ? 0x55aa55 : 0x5588dd);
+      const color = key === this.localSessionId ? 0x55aa55 : player.isBot ? 0xcc5544 : 0x5588dd;
+      const entity = new PlayerEntity(color);
       entity.snap(player.position.x, player.position.y, player.position.z, player.yaw);
       this.players.set(key, entity);
       if (key !== this.localSessionId) this.entityRoot.add(entity.mesh);
-      player.onChange(() => entity.setTarget(player.position.x, player.position.y, player.position.z, player.yaw));
+      player.onChange(() => {
+        entity.setTarget(player.position.x, player.position.y, player.position.z, player.yaw);
+        entity.mesh.visible = player.alive !== false;
+      });
     });
 
     this.room.state.players.onRemove((_player: any, key: string) => {

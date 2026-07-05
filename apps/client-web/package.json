@@ -10,7 +10,8 @@
   "dependencies": {
     "colyseus.js": "^0.16.15",
     "@schmalo/shared": "0.1.0",
-    "three": "^0.180.0"
+    "three": "^0.180.0",
+    "@schmalo/sim": "0.1.0"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
