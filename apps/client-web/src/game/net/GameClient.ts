@@ -15,6 +15,9 @@ export class GameClient {
     this.room.onMessage(MSG.PONG, (sentAt: number) => {
       this.pingMs = performance.now() - sentAt;
     });
+    // State schema is only populated after the first sync; wait for it
+    // so callers can bind onAdd handlers safely.
+    await new Promise<void>((resolve) => this.room!.onStateChange.once(() => resolve()));
     return this.room;
   }
 

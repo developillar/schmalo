@@ -1,3 +1,4 @@
+import { getStateCallbacks } from 'colyseus.js';
 import { MSG } from '@schmalo/shared';
 import type { HitConfirmPayload, KillFeedPayload, ShotFiredPayload } from '@schmalo/shared';
 import { BATTLE_RIFLE } from '@schmalo/sim';
@@ -39,10 +40,11 @@ async function main(): Promise<void> {
   });
 
   let mySnapshot: any = null;
-  room.state.players.onAdd((player: any, key: string) => {
+  const $ = getStateCallbacks(room as any);
+  $(room.state as any).players.onAdd((player: any, key: string) => {
     if (key !== room.sessionId) return;
     mySnapshot = player;
-    player.onChange(() => {
+    $(player).onChange(() => {
       predictor.reconcile(player.position);
       buffer.ack(player.ackSeq);
       predictor.grounded = player.grounded;
