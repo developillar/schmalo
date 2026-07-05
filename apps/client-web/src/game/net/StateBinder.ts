@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Room } from '@colyseus/client';
+import type { Room } from 'colyseus.js';
 import type { PropKind } from '@schmalo/shared';
 import { PhysicsPropEntity } from '../entities/PhysicsPropEntity';
 import { PlayerEntity } from '../entities/PlayerEntity';
