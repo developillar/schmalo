@@ -60,7 +60,19 @@ Run them: `npm --workspace @schmalo/sim run test`
 - Warthog driving (raycast-vehicle integration), grenade throwing,
   overshield pickups, loading Forge maps into the server world
 
-## Quick start
+## Play it
+
+**Live (GitHub Pages):** https://developillar.github.io/schmalo/ — static
+hosting has no game server, so the client runs **offline single-player
+mode**: the same `@schmalo/sim` modules that power the authoritative
+server run locally at a fixed 60 Hz (identical movement feel, BR timing,
+and shield/headshot rules) against the strafing training bot, and the
+Forge editor works fully. Append `?server=wss://your-host` to connect
+the deployed client to a hosted Colyseus server instead, or `?offline=1`
+anywhere to force offline mode. Deploys run from
+`.github/workflows/deploy-pages.yml` (tests must pass first).
+
+## Quick start (full multiplayer, local)
 
 ```bash
 npm install

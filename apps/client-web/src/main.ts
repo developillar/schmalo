@@ -1,4 +1,4 @@
-import { getStateCallbacks } from 'colyseus.js';
+import { getStateCallbacks, type Room } from 'colyseus.js';
 import { MSG } from '@schmalo/shared';
 import type { HitConfirmPayload, KillFeedPayload, ShotFiredPayload } from '@schmalo/shared';
 import { BATTLE_RIFLE } from '@schmalo/sim';
@@ -13,31 +13,45 @@ import { DebugPanel } from './game/ui/DebugPanel';
 import { Hud } from './game/ui/Hud';
 import { TracerPool } from './game/entities/TracerPool';
 import { ForgeEditor } from './game/forge/ForgeEditor';
+import { OfflineGame } from './game/offline/OfflineGame';
 
-async function main(): Promise<void> {
-  const app = document.querySelector<HTMLElement>('#app');
-  if (!app) throw new Error('missing app root');
+interface Shell {
+  app: HTMLElement;
+  scene: GameScene;
+  collector: InputCollector;
+  camera: CameraController;
+  hud: Hud;
+  tracers: TracerPool;
+  forge: ForgeEditor;
+}
 
-  const scene = new GameScene(app);
-  const client = new GameClient(import.meta.env.VITE_SERVER_URL ?? 'ws://localhost:2567');
-  const room = await client.connect();
+function resolveServerUrl(): string | null {
+  const params = new URLSearchParams(location.search);
+  if (params.get('offline') === '1') return null;
+  const fromQuery = params.get('server');
+  if (fromQuery) return fromQuery;
+  const fromEnv = import.meta.env.VITE_SERVER_URL as string | undefined;
+  if (fromEnv) return fromEnv;
+  // Static hosting (e.g. GitHub Pages) has no local server to talk to.
+  if (location.hostname.endsWith('github.io')) return null;
+  return 'ws://localhost:2567';
+}
 
+async function connectWithTimeout(client: GameClient, ms: number): Promise<Room> {
+  return Promise.race([
+    client.connect(),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('connect timeout')), ms)),
+  ]);
+}
+
+function runOnline(shell: Shell, client: GameClient, room: Room): void {
+  const { app, scene, collector, camera, hud, tracers, forge } = shell;
   const binder = new StateBinder(room, scene.entityRoot, room.sessionId);
   binder.bind();
 
-  const collector = new InputCollector(scene.renderer.domElement);
   const buffer = new PredictionBuffer();
   const predictor = new LocalPlayerPredictor();
-  const camera = new CameraController(scene.camera);
   const debug = new DebugPanel(app);
-  const hud = new Hud(app);
-  const tracers = new TracerPool(scene.entityRoot);
-  const forge = new ForgeEditor(scene.scene, scene.renderer.domElement, app);
-  forge.bindCamera(scene.camera);
-
-  window.addEventListener('keydown', (e) => {
-    if (e.code === 'KeyB') forge.toggle();
-  });
 
   let mySnapshot: any = null;
   const $ = getStateCallbacks(room as any);
@@ -55,7 +69,8 @@ async function main(): Promise<void> {
     });
   });
 
-  const shortName = (id: string): string => (id.startsWith('bot-') ? 'Training bot' : id === room.sessionId ? 'You' : id.slice(0, 6));
+  const shortName = (id: string): string =>
+    id.startsWith('bot-') ? 'Training bot' : id === room.sessionId ? 'You' : id.slice(0, 6);
 
   room.onMessage(MSG.HIT_CONFIRM, (payload: HitConfirmPayload) => hud.flashHit(payload.kind));
   room.onMessage(MSG.KILL_FEED, (payload: KillFeedPayload) => {
@@ -137,6 +152,72 @@ async function main(): Promise<void> {
   };
 
   requestAnimationFrame(loop);
+}
+
+function runOffline(shell: Shell): void {
+  const { scene, collector, camera, hud, tracers, forge } = shell;
+  const game = new OfflineGame(scene.entityRoot, tracers, hud);
+  (window as any).__offline = game; // debug/testing hook
+
+  let last = performance.now();
+  const loop = (now: number): void => {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+
+    const input = collector.collect(dt);
+    if (forge.active) {
+      forge.update(dt, scene.camera, input.yaw, input.pitch);
+    } else {
+      game.update(input, dt);
+      camera.update(
+        game.position,
+        input.yaw,
+        input.pitch,
+        game.crouched,
+        game.zoomed ? BATTLE_RIFLE.ZOOM_FACTOR : 1,
+      );
+    }
+
+    tracers.tick(dt);
+    hud.tick(dt);
+    scene.render();
+    requestAnimationFrame(loop);
+  };
+
+  requestAnimationFrame(loop);
+}
+
+async function main(): Promise<void> {
+  const app = document.querySelector<HTMLElement>('#app');
+  if (!app) throw new Error('missing app root');
+
+  const scene = new GameScene(app);
+  const shell: Shell = {
+    app,
+    scene,
+    collector: new InputCollector(scene.renderer.domElement),
+    camera: new CameraController(scene.camera),
+    hud: new Hud(app),
+    tracers: new TracerPool(scene.entityRoot),
+    forge: new ForgeEditor(scene.scene, scene.renderer.domElement, app),
+  };
+  shell.forge.bindCamera(scene.camera);
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyB') shell.forge.toggle();
+  });
+
+  const serverUrl = resolveServerUrl();
+  if (serverUrl) {
+    try {
+      const client = new GameClient(serverUrl);
+      const room = await connectWithTimeout(client, 5000);
+      runOnline(shell, client, room);
+      return;
+    } catch (err) {
+      console.warn('server unreachable, falling back to offline mode:', err);
+    }
+  }
+  runOffline(shell);
 }
 
 main().catch((err) => console.error(err));
