@@ -111,6 +111,30 @@ export class Hud {
     this.score.textContent = `K ${kills}  /  D ${deaths}`;
   }
 
+  private readonly prompt = document.createElement('div');
+  private promptAttached = false;
+
+  /** Context prompt above the reticle ("Press E — drive"). Null hides. */
+  setPrompt(text: string | null): void {
+    if (!this.promptAttached) {
+      this.prompt.style.cssText =
+        'position:absolute;left:50%;top:58%;transform:translateX(-50%);font-size:15px;' +
+        'padding:4px 10px;background:#101820cc;border:1px solid #4d6a8a;border-radius:4px';
+      this.root.appendChild(this.prompt);
+      this.promptAttached = true;
+    }
+    this.prompt.style.display = text ? 'block' : 'none';
+    if (text) this.prompt.textContent = text;
+  }
+
+  /** Turret heat readout (replaces ammo while gunning). */
+  setTurretHeat(heat: number, overheated: boolean): void {
+    const pct = Math.round(heat * 100);
+    this.ammo.innerHTML = overheated
+      ? '<span style="color:#ff5f4d">OVERHEATED</span>'
+      : `HEAT <span style="color:${pct > 70 ? '#ffb64d' : '#8fd0ff'}">${pct}%</span>`;
+  }
+
   setDead(respawnIn: number): void {
     if (respawnIn > 0) {
       this.deathOverlay.style.display = 'flex';

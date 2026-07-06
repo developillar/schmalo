@@ -41,6 +41,8 @@ export class PlayerSnapshot extends Schema {
   @type('number') declare respawnIn: number;
   @type('number') declare kills: number;
   @type('number') declare deaths: number;
+  /** '' when on foot, else driver|passenger|gunner. */
+  @type('string') declare seat: string;
 
   constructor(sessionId: string, isBot = false) {
     super();
@@ -63,6 +65,42 @@ export class PlayerSnapshot extends Schema {
     this.respawnIn = 0;
     this.kills = 0;
     this.deaths = 0;
+    this.seat = '';
+  }
+}
+
+export class VehicleSnapshot extends Schema {
+  @type('string') declare id: string;
+  @type(Vec3State) declare position: Vec3State;
+  @type('number') declare qx: number;
+  @type('number') declare qy: number;
+  @type('number') declare qz: number;
+  @type('number') declare qw: number;
+  @type('number') declare speed: number;
+  @type('number') declare heat: number;
+  @type('boolean') declare overheated: boolean;
+  @type('number') declare turretYaw: number;
+  @type('number') declare turretPitch: number;
+  @type('string') declare driver: string;
+  @type('string') declare passenger: string;
+  @type('string') declare gunner: string;
+
+  constructor(id: string) {
+    super();
+    this.id = id;
+    this.position = new Vec3State();
+    this.qx = 0;
+    this.qy = 0;
+    this.qz = 0;
+    this.qw = 1;
+    this.speed = 0;
+    this.heat = 0;
+    this.overheated = false;
+    this.turretYaw = 0;
+    this.turretPitch = 0;
+    this.driver = '';
+    this.passenger = '';
+    this.gunner = '';
   }
 }
 
@@ -95,6 +133,7 @@ export class RoomTickState extends Schema {
 export class SandboxRoomState extends Schema {
   @type({ map: PlayerSnapshot }) declare players: MapSchema<PlayerSnapshot>;
   @type({ map: PropSnapshot }) declare props: MapSchema<PropSnapshot>;
+  @type({ map: VehicleSnapshot }) declare vehicles: MapSchema<VehicleSnapshot>;
   @type(RoomTickState) declare room: RoomTickState;
   @type('number') declare playerCount: number;
   @type(['string']) declare recentAcks: ArraySchema<string>;
@@ -103,6 +142,7 @@ export class SandboxRoomState extends Schema {
     super();
     this.players = new MapSchema<PlayerSnapshot>();
     this.props = new MapSchema<PropSnapshot>();
+    this.vehicles = new MapSchema<VehicleSnapshot>();
     this.room = new RoomTickState();
     this.playerCount = 0;
     this.recentAcks = new ArraySchema<string>();

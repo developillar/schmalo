@@ -5,3 +5,4 @@ export * from './battleRifle';
 export * from './grenade';
 export * from './warthog';
 export * from './forge';
+export * from './arena';

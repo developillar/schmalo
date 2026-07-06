@@ -1,4 +1,4 @@
-import { MOVEMENT } from '@schmalo/sim';
+import { ARENA_SPAWNS, MOVEMENT } from '@schmalo/sim';
 
 export const NET = {
   TICK_RATE: 60,
@@ -31,12 +31,7 @@ export const COMBAT = {
 export const WORLD = {
   ROOM_NAME: 'sandbox',
   MAX_PLAYERS: 8,
-  SPAWN_POSITIONS: [
-    { x: 0, y: 4, z: 0 },
-    { x: 3, y: 4, z: 0 },
-    { x: -3, y: 4, z: 0 },
-    { x: 0, y: 4, z: 3 },
-  ],
+  SPAWN_POSITIONS: ARENA_SPAWNS,
 };
 
 export const DEBUG = {

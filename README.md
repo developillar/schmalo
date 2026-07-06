@@ -39,6 +39,10 @@ acceptance tests** covering every testable PRD bullet:
 Run them: `npm --workspace @schmalo/sim run test`
 
 ### In-game (client + server)
+- **Arena:** data-driven map shared by server colliders and client
+  meshes (`packages/sim/src/arena.ts`) — central hill with four ramps,
+  red/blue bases with decks and roofs, a west bridge, an east tower,
+  scattered cover, and an open vehicle field
 - Server-authoritative movement driven by the **same sim math** as the
   headless tests (velocity-verlet gravity → in-engine apex matches),
   client prediction + reconciliation, remote interpolation
@@ -46,19 +50,34 @@ Run them: `npm --workspace @schmalo/sim run test`
   head/body hit zones, shields/health/recharge, kill → 5 s respawn,
   hitmarkers (shield/flesh/headshot/kill), kill feed, tracers, 2× zoom
   (FOV + vignette), descope on damage, melee with back-smack instakill
-- **Training bot** that strafes, dies, and respawns through the same
-  authoritative pipeline
-- **HUD:** segmented shield bar, health pips, ammo/reload, reticle,
-  K/D, respawn overlay
+- **First-person burst-rifle view model:** procedural gun with walk
+  bob, fire kick, muzzle flash, reload dip; hidden while scoped
+- **Bot AI:** two bots run the full player pipeline with waypoint
+  wandering, line-of-sight target acquisition, strafe-fighting with
+  imperfect aim and burst discipline, headshot finishing once shields
+  pop, and a retreat state while recharging — they fight you *and*
+  each other
+- **Warthog:** server-side Rapier raycast vehicle (per-wheel
+  suspension, AWD, 16 m/s cap), three contextual seats (E to board:
+  front-left → driver, right → passenger, rear → gunner), driver
+  throttle/steer, gunner chaingun with spin-up/overheat, splatter
+  kills at ≥7 m/s with knockback below, flip recovery
+- **HUD:** segmented shield bar, health pips, ammo/reload, turret heat,
+  reticle, boarding prompt, K/D, respawn overlay
 - **Forge MVP (client-local):** press **B** — noclip monitor fly-cam,
   8-item palette (blocks/ramp/wall/platform, player/weapon/vehicle
   spawns, objective), spawn/grab/move/rotate(snapped)/duplicate/delete,
   fixed vs normal physics state, budget cap, **K/L save/load** of the
   deterministic JSON format
 
+### Offline single-player (GitHub Pages)
+The offline fallback is a real deathmatch now: raycast collision
+against the arena meshes, two bots that hunt and shoot back, player
+shields/death/respawn, and an arcade Warthog with splatter.
+
 ### Not yet wired in-game (modules ready & tested)
-- Warthog driving (raycast-vehicle integration), grenade throwing,
-  overshield pickups, loading Forge maps into the server world
+- Grenade throwing, overshield pickups, loading Forge maps into the
+  server world, vehicle damage/destruction
 
 ## Play it
 
@@ -66,7 +85,7 @@ Run them: `npm --workspace @schmalo/sim run test`
 hosting has no game server, so the client runs **offline single-player
 mode**: the same `@schmalo/sim` modules that power the authoritative
 server run locally at a fixed 60 Hz (identical movement feel, BR timing,
-and shield/headshot rules) against the strafing training bot, and the
+and shield/headshot rules) against two AI bots, with a driveable Warthog, and the
 Forge editor works fully. Append `?server=wss://your-host` to connect
 the deployed client to a hosted Colyseus server instead, or `?offline=1`
 anywhere to force offline mode. Deploys run from
@@ -92,6 +111,7 @@ Point the client elsewhere with `VITE_SERVER_URL=ws://host:2567`.
 | RMB | 2× zoom toggle |
 | R | reload |
 | F / V | melee |
+| E | board / exit the Warthog (seat picked by where you stand) |
 | B | toggle Forge editor (in-editor help shown on the bottom bar) |
 
 ## Testing

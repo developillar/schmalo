@@ -1,5 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { PLAYER } from '@schmalo/shared';
+import { ARENA, ARENA_BLOCKS, eulerXYZDegToQuat } from '@schmalo/sim';
 import { PropSnapshot, type SandboxRoomState } from './GameState';
 
 interface PropRuntime {
@@ -35,25 +36,23 @@ export class PhysicsWorld {
   }
 
   private createStaticLevel(): void {
+    // Floor + perimeter walls + every arena block, from the shared
+    // data-driven layout (kept in lockstep with the client visuals).
     const floor = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(30, 1, 30).setTranslation(0, -1, 0), floor);
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(30, 8, 1).setTranslation(0, 8, -30), floor);
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(30, 8, 1).setTranslation(0, 8, 30), floor);
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(1, 8, 30).setTranslation(-30, 8, 0), floor);
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(1, 8, 30).setTranslation(30, 8, 0), floor);
+    const h = ARENA.HALF_SIZE;
+    const wall = ARENA.WALL_HEIGHT;
+    this.world.createCollider(RAPIER.ColliderDesc.cuboid(h + 2, 1, h + 2).setTranslation(0, -1, 0), floor);
+    this.world.createCollider(RAPIER.ColliderDesc.cuboid(h, wall, 1).setTranslation(0, wall, -h - 1), floor);
+    this.world.createCollider(RAPIER.ColliderDesc.cuboid(h, wall, 1).setTranslation(0, wall, h + 1), floor);
+    this.world.createCollider(RAPIER.ColliderDesc.cuboid(1, wall, h).setTranslation(-h - 1, wall, 0), floor);
+    this.world.createCollider(RAPIER.ColliderDesc.cuboid(1, wall, h).setTranslation(h + 1, wall, 0), floor);
 
-    this.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(4, 0.5, 4).setTranslation(9, 2, -10).setRotation({ x: 0.2, y: 0, z: 0, w: 1 }),
-      floor,
-    );
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(3, 1.5, 3).setTranslation(-12, 1.5, 4), floor);
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(8, 0.8, 2).setTranslation(0, 0.8, 12), floor);
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(8, 0.8, 2).setTranslation(0, 2.4, 16), floor);
-
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(5, 1, 3).setTranslation(-14, 1, -12), floor);
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(5, 0.4, 3).setTranslation(-14, 2.6, -12), floor);
-
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(4, 4, 4).setTranslation(18, -4, 0), floor);
+    for (const block of ARENA_BLOCKS) {
+      const desc = RAPIER.ColliderDesc.cuboid(block.size[0] / 2, block.size[1] / 2, block.size[2] / 2)
+        .setTranslation(block.pos[0], block.pos[1], block.pos[2]);
+      if (block.rot) desc.setRotation(eulerXYZDegToQuat(block.rot));
+      this.world.createCollider(desc, floor);
+    }
   }
 
   private createProps(): void {

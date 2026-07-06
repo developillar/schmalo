@@ -5,11 +5,14 @@ import { MOVEMENT, stepVelocity, type MoveState } from '@schmalo/sim';
 import type { PlayerManager } from './PlayerManager';
 import type { PlayerRuntimeState } from './PlayerState';
 import type { CombatSystem } from './CombatSystem';
+import type { VehicleSystem } from '../vehicles/VehicleSystem';
 import type { SandboxRoomState } from '../world/GameState';
 
 const GROUND_PROBE = PLAYER.STANDING_HEIGHT / 2 + 0.08;
 
 export class PlayerSystem {
+  private vehicles?: VehicleSystem;
+
   constructor(
     private readonly rapier: typeof RAPIERModule,
     private readonly world: RAPIERModule.World,
@@ -17,6 +20,10 @@ export class PlayerSystem {
     private readonly state: SandboxRoomState,
     private readonly combat: CombatSystem,
   ) {}
+
+  attachVehicles(vehicles: VehicleSystem): void {
+    this.vehicles = vehicles;
+  }
 
   enqueueInput(sessionId: string, input: InputPayload): void {
     const player = this.players.get(sessionId);
@@ -32,7 +39,18 @@ export class PlayerSystem {
       }
 
       for (const input of player.inputs.splice(0)) {
+        if (player.vehicleSeat) {
+          // Seated: movement/keys become vehicle controls; the
+          // passenger keeps their own weapon usable.
+          player.yaw = input.yaw;
+          player.pitch = input.pitch;
+          player.lastProcessedInput = input.seq;
+          if (player.vehicleSeat === 'passenger') this.combat.handleInput(player, input);
+          this.vehicles?.handleSeatedInput(player, input);
+          continue;
+        }
         this.applyInput(player, input, dt);
+        if (input.use) this.vehicles?.tryBoard(player);
         this.combat.handleInput(player, input);
       }
 
@@ -42,6 +60,7 @@ export class PlayerSystem {
   }
 
   private stepDead(player: PlayerRuntimeState, dt: number): void {
+    if (player.vehicleSeat) this.vehicles?.exit(player);
     // Keep acking inputs so the client's prediction buffer drains.
     for (const input of player.inputs.splice(0)) {
       player.lastProcessedInput = input.seq;
@@ -134,5 +153,6 @@ export class PlayerSystem {
     snapshot.respawnIn = player.vitals.alive ? 0 : Math.max(0, player.respawnTimer);
     snapshot.kills = player.kills;
     snapshot.deaths = player.deaths;
+    snapshot.seat = player.vehicleSeat ?? '';
   }
 }

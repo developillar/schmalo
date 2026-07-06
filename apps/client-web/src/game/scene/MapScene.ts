@@ -1,33 +1,64 @@
 import * as THREE from 'three';
+import { ARENA, ARENA_BLOCKS, degToRad } from '@schmalo/sim';
 
-export function createMapScene(root: THREE.Group): void {
-  const gray = new THREE.MeshStandardMaterial({ color: 0x7a7a7a });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x525252 });
+/** Builds the arena visuals from the same data the server builds its
+ * colliders from. Returns the group so gameplay code (offline collision,
+ * Forge raycasts) can raycast against it. */
+export function createMapScene(root: THREE.Group): THREE.Group {
+  const materials = new Map<number, THREE.MeshStandardMaterial>();
+  const materialFor = (color: number): THREE.MeshStandardMaterial => {
+    let m = materials.get(color);
+    if (!m) {
+      m = new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.1 });
+      materials.set(color, m);
+    }
+    return m;
+  };
 
-  const floor = new THREE.Mesh(new THREE.BoxGeometry(60, 2, 60), gray);
+  const h = ARENA.HALF_SIZE;
+
+  // Floor with a subtle grid for speed perception.
+  const floor = new THREE.Mesh(
+    new THREE.BoxGeometry(h * 2 + 4, 2, h * 2 + 4),
+    materialFor(ARENA.FLOOR_COLOR),
+  );
   floor.position.set(0, -1, 0);
+  floor.receiveShadow = true;
   root.add(floor);
 
-  const ramp = new THREE.Mesh(new THREE.BoxGeometry(8, 1, 8), dark);
-  ramp.position.set(9, 2, -10);
-  ramp.rotation.x = -0.4;
-  root.add(ramp);
+  const grid = new THREE.GridHelper(h * 2, 16, 0x3d434c, 0x494f59);
+  grid.position.y = 0.02;
+  root.add(grid);
 
-  const platform1 = new THREE.Mesh(new THREE.BoxGeometry(16, 1.6, 4), gray);
-  platform1.position.set(0, 0.8, 12);
-  root.add(platform1);
-  const platform2 = new THREE.Mesh(new THREE.BoxGeometry(16, 1.6, 4), gray);
-  platform2.position.set(0, 2.4, 16);
-  root.add(platform2);
+  // Perimeter walls.
+  const wallMat = materialFor(ARENA.WALL_COLOR);
+  const wallGeoNS = new THREE.BoxGeometry(h * 2, ARENA.WALL_HEIGHT * 2, 2);
+  const wallGeoEW = new THREE.BoxGeometry(2, ARENA.WALL_HEIGHT * 2, h * 2);
+  for (const [x, z, geo] of [
+    [0, -h - 1, wallGeoNS],
+    [0, h + 1, wallGeoNS],
+    [-h - 1, 0, wallGeoEW],
+    [h + 1, 0, wallGeoEW],
+  ] as const) {
+    const wall = new THREE.Mesh(geo, wallMat);
+    wall.position.set(x, ARENA.WALL_HEIGHT, z);
+    root.add(wall);
+  }
 
-  const tunnelBase = new THREE.Mesh(new THREE.BoxGeometry(10, 2, 6), gray);
-  tunnelBase.position.set(-14, 1, -12);
-  root.add(tunnelBase);
-  const tunnelCeil = new THREE.Mesh(new THREE.BoxGeometry(10, 0.8, 6), dark);
-  tunnelCeil.position.set(-14, 2.6, -12);
-  root.add(tunnelCeil);
+  // Every gameplay block, straight from the shared layout.
+  for (const block of ARENA_BLOCKS) {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(block.size[0], block.size[1], block.size[2]),
+      materialFor(block.color ?? 0x757c86),
+    );
+    mesh.position.set(block.pos[0], block.pos[1], block.pos[2]);
+    if (block.rot) {
+      mesh.rotation.set(degToRad(block.rot[0]), degToRad(block.rot[1]), degToRad(block.rot[2]), 'XYZ');
+    }
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    root.add(mesh);
+  }
 
-  const pit = new THREE.Mesh(new THREE.BoxGeometry(8, 8, 8), new THREE.MeshStandardMaterial({ color: 0x1f1f1f }));
-  pit.position.set(18, -4, 0);
-  root.add(pit);
+  return root;
 }

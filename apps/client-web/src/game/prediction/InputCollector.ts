@@ -12,12 +12,14 @@ export class InputCollector {
   private zoomEdge = false;
   private reloadEdge = false;
   private meleeEdge = false;
+  private useEdge = false;
 
   constructor(private readonly dom: HTMLElement) {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Space' && !this.keys.has('Space')) this.jumpEdge = true;
       if (e.code === 'KeyR') this.reloadEdge = true;
       if (e.code === 'KeyF' || e.code === 'KeyV') this.meleeEdge = true;
+      if (e.code === 'KeyE' && !this.keys.has('KeyE')) this.useEdge = true;
       this.keys.add(e.code);
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
@@ -61,11 +63,13 @@ export class InputCollector {
       reload: this.reloadEdge,
       zoomToggle: this.zoomEdge,
       melee: this.meleeEdge,
+      use: this.useEdge,
     };
     this.jumpEdge = false;
     this.zoomEdge = false;
     this.reloadEdge = false;
     this.meleeEdge = false;
+    this.useEdge = false;
     return input;
   }
 }

@@ -1,6 +1,6 @@
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type { InputPayload } from '@schmalo/shared';
-import type { BattleRifle, Vitals } from '@schmalo/sim';
+import type { BattleRifle, SeatId, Vitals } from '@schmalo/sim';
 
 export interface PlayerRuntimeState {
   sessionId: string;
@@ -25,4 +25,6 @@ export interface PlayerRuntimeState {
   meleeCooldown: number;
   kills: number;
   deaths: number;
+  /** Warthog seat, or null when on foot. */
+  vehicleSeat: SeatId | null;
 }

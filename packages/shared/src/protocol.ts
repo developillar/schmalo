@@ -24,6 +24,8 @@ export interface InputPayload {
   reload: boolean;
   zoomToggle: boolean;
   melee: boolean;
+  /** Edge-triggered: enter/exit vehicle (E). */
+  use: boolean;
 }
 
 export interface AckPayload {

@@ -54,6 +54,7 @@ export class PlayerManager {
       meleeCooldown: 0,
       kills: 0,
       deaths: 0,
+      vehicleSeat: null,
     };
 
     this.bySession.set(sessionId, runtime);
@@ -67,6 +68,7 @@ export class PlayerManager {
 
   respawn(player: PlayerRuntimeState): void {
     const spawn = this.nextSpawn();
+    player.collider.setEnabled(true);
     player.body.setTranslation({ x: spawn.x, y: spawn.y, z: spawn.z }, true);
     player.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     player.velY = 0;

@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { getStateCallbacks, type Room } from 'colyseus.js';
 import { MSG } from '@schmalo/shared';
 import type { HitConfirmPayload, KillFeedPayload, ShotFiredPayload } from '@schmalo/shared';
@@ -12,6 +13,7 @@ import { CameraController } from './game/scene/CameraController';
 import { DebugPanel } from './game/ui/DebugPanel';
 import { Hud } from './game/ui/Hud';
 import { TracerPool } from './game/entities/TracerPool';
+import { WeaponViewModel } from './game/entities/WeaponViewModel';
 import { ForgeEditor } from './game/forge/ForgeEditor';
 import { OfflineGame } from './game/offline/OfflineGame';
 
@@ -23,6 +25,7 @@ interface Shell {
   hud: Hud;
   tracers: TracerPool;
   forge: ForgeEditor;
+  viewModel: WeaponViewModel;
 }
 
 function resolveServerUrl(): string | null {
@@ -70,7 +73,11 @@ function runOnline(shell: Shell, client: GameClient, room: Room): void {
   });
 
   const shortName = (id: string): string =>
-    id.startsWith('bot-') ? 'Training bot' : id === room.sessionId ? 'You' : id.slice(0, 6);
+    id.startsWith('bot-')
+      ? `Bot ${id.slice(4)[0].toUpperCase()}${id.slice(5)}`
+      : id === room.sessionId
+        ? 'You'
+        : id.slice(0, 6);
 
   room.onMessage(MSG.HIT_CONFIRM, (payload: HitConfirmPayload) => hud.flashHit(payload.kind));
   room.onMessage(MSG.KILL_FEED, (payload: KillFeedPayload) => {
@@ -78,6 +85,7 @@ function runOnline(shell: Shell, client: GameClient, room: Room): void {
   });
   room.onMessage(MSG.SHOT_FIRED, (payload: ShotFiredPayload) => {
     tracers.spawn(payload.origin, payload.end);
+    if (payload.shooter === room.sessionId) shell.viewModel.onShot();
   });
 
   let last = performance.now();
@@ -88,6 +96,9 @@ function runOnline(shell: Shell, client: GameClient, room: Room): void {
     last = now;
 
     const input = collector.collect(dt);
+    const seat: string = mySnapshot?.seat ?? '';
+    const hogEntity = binder.vehicles.get('hog-1');
+    const hogState = (room.state as any).vehicles?.get?.('hog-1');
 
     if (forge.active) {
       // Monitor mode: the player stands still (but keeps acking) while
@@ -101,8 +112,21 @@ function runOnline(shell: Shell, client: GameClient, room: Room): void {
         reload: false,
         zoomToggle: false,
         melee: false,
+        use: false,
       });
       forge.update(dt, scene.camera, input.yaw, input.pitch);
+    } else if (seat && hogEntity) {
+      // Seated: controls go to the vehicle; camera rides the seat.
+      client.sendInput(input);
+      const seatOffsets: Record<string, [number, number, number]> = {
+        driver: [-0.55, 1.45, 0.25],
+        passenger: [0.55, 1.45, 0.25],
+        gunner: [0, 2.1, 1.35],
+      };
+      const [sx, sy, sz] = seatOffsets[seat] ?? [0, 1.5, 0];
+      const seatWorld = hogEntity.group.localToWorld(new THREE.Vector3(sx, sy, sz));
+      scene.camera.position.copy(seatWorld);
+      scene.camera.rotation.set(input.pitch, input.yaw, 0, 'YXZ');
     } else {
       client.sendInput(input);
       buffer.push(input);
@@ -117,16 +141,38 @@ function runOnline(shell: Shell, client: GameClient, room: Room): void {
       );
     }
 
-    binder.tick();
+    binder.tick(0.25, dt);
     tracers.tick(dt);
     hud.tick(dt);
 
+    shell.viewModel.update(dt, {
+      speed: Math.hypot(predictor.velocity.x, predictor.velocity.z),
+      grounded: predictor.grounded,
+      reloading: mySnapshot?.reloading === true,
+      zoomed: mySnapshot?.zoomed === true || forge.active || seat === 'driver' || seat === 'gunner',
+    });
+
     if (mySnapshot) {
       hud.setVitals(mySnapshot.shield, mySnapshot.health);
-      hud.setAmmo(mySnapshot.mag, mySnapshot.reserve, mySnapshot.reloading);
-      hud.setZoom(mySnapshot.zoomed && !forge.active);
+      if (seat === 'gunner' && hogState) {
+        hud.setTurretHeat(hogState.heat, hogState.overheated);
+      } else {
+        hud.setAmmo(mySnapshot.mag, mySnapshot.reserve, mySnapshot.reloading);
+      }
+      hud.setZoom(mySnapshot.zoomed && !forge.active && !seat);
       hud.setScore(mySnapshot.kills, mySnapshot.deaths);
       hud.setDead(mySnapshot.alive ? 0 : mySnapshot.respawnIn);
+
+      // Vehicle prompt.
+      if (!seat && mySnapshot.alive && hogState && !forge.active) {
+        const dx = hogState.position.x - predictor.predictedPosition.x;
+        const dy = hogState.position.y - predictor.predictedPosition.y;
+        const dz = hogState.position.z - predictor.predictedPosition.z;
+        const near = Math.hypot(dx, dy, dz) < 3.8;
+        hud.setPrompt(near ? 'E — board Warthog' : null);
+      } else if (seat) {
+        hud.setPrompt(null);
+      }
     }
 
     pingClock += dt;
@@ -155,8 +201,8 @@ function runOnline(shell: Shell, client: GameClient, room: Room): void {
 }
 
 function runOffline(shell: Shell): void {
-  const { scene, collector, camera, hud, tracers, forge } = shell;
-  const game = new OfflineGame(scene.entityRoot, tracers, hud);
+  const { scene, collector, camera, hud, tracers, forge, viewModel } = shell;
+  const game = new OfflineGame(scene.entityRoot, scene.mapRoot, tracers, hud, viewModel);
   (window as any).__offline = game; // debug/testing hook
 
   let last = performance.now();
@@ -169,13 +215,18 @@ function runOffline(shell: Shell): void {
       forge.update(dt, scene.camera, input.yaw, input.pitch);
     } else {
       game.update(input, dt);
-      camera.update(
-        game.position,
-        input.yaw,
-        input.pitch,
-        game.crouched,
-        game.zoomed ? BATTLE_RIFLE.ZOOM_FACTOR : 1,
-      );
+      if (game.seatWorld) {
+        scene.camera.position.copy(game.seatWorld);
+        scene.camera.rotation.set(input.pitch, input.yaw, 0, 'YXZ');
+      } else {
+        camera.update(
+          game.position,
+          input.yaw,
+          input.pitch,
+          game.crouched,
+          game.zoomed ? BATTLE_RIFLE.ZOOM_FACTOR : 1,
+        );
+      }
     }
 
     tracers.tick(dt);
@@ -200,6 +251,7 @@ async function main(): Promise<void> {
     hud: new Hud(app),
     tracers: new TracerPool(scene.entityRoot),
     forge: new ForgeEditor(scene.scene, scene.renderer.domElement, app),
+    viewModel: new WeaponViewModel(scene.camera),
   };
   shell.forge.bindCamera(scene.camera);
   window.addEventListener('keydown', (e) => {

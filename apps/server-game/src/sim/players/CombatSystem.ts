@@ -6,7 +6,7 @@ import type {
   KillFeedPayload,
   ShotFiredPayload,
 } from '@schmalo/shared';
-import { brDamagePerBullet, viewDirection, type Vec3 } from '@schmalo/sim';
+import { brDamagePerBullet, resolveVehicleImpact, viewDirection, type Vec3 } from '@schmalo/sim';
 import type { PlayerManager } from './PlayerManager';
 import type { PlayerRuntimeState } from './PlayerState';
 
@@ -74,7 +74,24 @@ export class CombatSystem {
   private fireHitscan(shooter: PlayerRuntimeState, spreadDeg: number): void {
     const t = shooter.body.translation();
     const origin: Vec3 = { x: t.x, y: t.y + EYE_OFFSET, z: t.z };
-    const dir = this.applySpread(viewDirection(shooter.yaw, shooter.pitch), spreadDeg);
+    this.fireHitscanFrom(shooter, origin, shooter.yaw, shooter.pitch, spreadDeg, null);
+  }
+
+  /**
+   * Generic hitscan used by the BR (damage=null → range falloff model)
+   * and the Warthog chaingun (fixed per-bullet damage, turret origin).
+   * Headshots only matter to precision weapons, so `precision` gates
+   * the instakill flag.
+   */
+  fireHitscanFrom(
+    shooter: PlayerRuntimeState,
+    origin: Vec3,
+    yaw: number,
+    pitch: number,
+    spreadDeg: number,
+    damagePerBullet: number | null,
+  ): void {
+    const dir = this.applySpread(viewDirection(yaw, pitch), spreadDeg);
 
     const ray = new this.rapier.Ray(origin, dir);
     const hit = this.world.castRay(ray, MAX_RANGE, true, undefined, undefined, undefined, shooter.body);
@@ -97,11 +114,13 @@ export class CombatSystem {
     const target = this.players.get(targetId);
     if (!target || !target.vitals.alive) return;
 
+    const precision = damagePerBullet === null;
     const targetPos = target.body.translation();
     const targetBottom = targetPos.y - PLAYER.STANDING_HEIGHT / 2;
-    const headshot = end.y - targetBottom >= PLAYER.STANDING_HEIGHT * PLAYER.HEAD_FRACTION;
+    const headshot =
+      precision && end.y - targetBottom >= PLAYER.STANDING_HEIGHT * PLAYER.HEAD_FRACTION;
 
-    const damage = brDamagePerBullet(toi);
+    const damage = damagePerBullet ?? brDamagePerBullet(toi);
     const result = target.vitals.applyDamage({ amount: damage, headshot });
     target.rifle.onDamaged(); // descope
 
@@ -114,6 +133,34 @@ export class CombatSystem {
     if (result.died) {
       this.onKill(shooter, target, result.headshotKill);
     }
+  }
+
+  /** Vehicle→player impact: instakill splatter at/above the threshold,
+   * damage + knockback impulse below it. */
+  applyVehicleImpact(
+    driver: PlayerRuntimeState,
+    target: PlayerRuntimeState,
+    relativeSpeed: number,
+    pushDir: Vec3,
+  ): void {
+    if (!target.vitals.alive) return;
+    const impact = resolveVehicleImpact(relativeSpeed);
+    const amount = impact.splatter ? 100000 : impact.damage;
+    const result = target.vitals.applyDamage({ amount });
+    target.rifle.onDamaged();
+    if (!impact.splatter && impact.knockback > 0) {
+      target.body.applyImpulse(
+        {
+          x: pushDir.x * impact.knockback * 85,
+          y: 0.35 * impact.knockback * 85,
+          z: pushDir.z * impact.knockback * 85,
+        },
+        true,
+      );
+    }
+    const kind: HitConfirmPayload['kind'] = result.died ? 'kill' : 'flesh';
+    this.io.send(driver.sessionId, MSG.HIT_CONFIRM, { kind } satisfies HitConfirmPayload);
+    if (result.died) this.onKill(driver, target, false);
   }
 
   private resolveMelee(attacker: PlayerRuntimeState): void {

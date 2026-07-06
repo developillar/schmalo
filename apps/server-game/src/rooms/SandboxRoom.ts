@@ -4,7 +4,8 @@ import type { InputPayload } from '@schmalo/shared';
 import { PlayerManager } from '../sim/players/PlayerManager';
 import { PlayerSystem } from '../sim/players/PlayerSystem';
 import { CombatSystem } from '../sim/players/CombatSystem';
-import { BotSystem, BOT_ID } from '../sim/players/BotSystem';
+import { BotSystem } from '../sim/players/BotSystem';
+import { VehicleSystem } from '../sim/vehicles/VehicleSystem';
 import { SandboxRoomState } from '../sim/world/GameState';
 import { PhysicsWorld } from '../sim/world/PhysicsWorld';
 
@@ -15,6 +16,7 @@ export class SandboxRoom extends Room<SandboxRoomState> {
   private playerSystem!: PlayerSystem;
   private combat!: CombatSystem;
   private bots!: BotSystem;
+  private vehicles!: VehicleSystem;
 
   override async onCreate(): Promise<void> {
     this.setState(new SandboxRoomState());
@@ -33,7 +35,17 @@ export class SandboxRoom extends Room<SandboxRoomState> {
       this.state,
       this.combat,
     );
-    this.bots = new BotSystem(this.players);
+    this.vehicles = new VehicleSystem(
+      this.physics.rapier,
+      this.physics.world,
+      this.players,
+      this.combat,
+      this.state,
+      { broadcast: (type, payload) => this.broadcast(type, payload) },
+    );
+    this.vehicles.spawn();
+    this.playerSystem.attachVehicles(this.vehicles);
+    this.bots = new BotSystem(this.physics.rapier, this.physics.world, this.players);
     this.bots.spawn();
 
     this.onMessage(MSG.INPUT, (client, payload: InputPayload) => {
@@ -46,10 +58,13 @@ export class SandboxRoom extends Room<SandboxRoomState> {
 
     this.setSimulationInterval((deltaMs) => {
       const dt = deltaMs / 1000;
-      const botInput = this.bots.step(dt);
-      if (botInput) this.playerSystem.enqueueInput(BOT_ID, botInput);
+      for (const { id, input } of this.bots.step(dt)) {
+        this.playerSystem.enqueueInput(id, input);
+      }
       this.playerSystem.step(dt);
+      this.vehicles.update(dt);
       this.physics.step();
+      this.vehicles.postStep(dt);
       this.state.room.tick += 1;
       this.state.room.simRate = NET.TICK_RATE;
     }, 1000 / NET.TICK_RATE);
